@@ -30,19 +30,10 @@ plugin restores Obsidian's native rendering.
 
 ## Acknowledgements
 
-Inspired by [obsidian-bujo-bullets](https://github.com/frankolson/obsidian-bujo-bullets) by Frank Olson — a great starting point for BuJo-style checkboxes in Obsidian.
+Inspired by [obsidian-bujo-bullets](https://github.com/frankolson/obsidian-bujo-bullets) by Frank Olson.
 
 ## My other Obsidian plugins
 
-- **[Date List](https://github.com/lumargh/obsidian-date-list)** — Returns a list of dates according to the conditions you supply.
-- **[Calendar List](https://github.com/lumargh/obsidian-calendar-list)** — Insert macOS Calendar events into your notes.
-- **[File Filter](https://github.com/lumargh/obsidian-file-filter)** — Filter your pages and sidebar by a search term; everything else fades away.
-
-## Development
-
-```bash
-npm install
-npm run dev    # watch build
-npm run build  # production build + type-check
-npm run lint
-```
+- **[Date List](https://community.obsidian.md/plugins/date-list)** — Returns a list of dates according to the conditions you supply.
+- **[Calendar List](https://community.obsidian.md/plugins/calendar-list)** — Insert macOS Calendar events into your notes.
+- **[File Filter](https://community.obsidian.md/plugins/file-filter)** — Filter your pages and sidebar by a search term; everything else fades away.
