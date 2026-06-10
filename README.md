@@ -28,6 +28,10 @@ and a CodeMirror extension so they can be styled.
 All styling is scoped under a `better-bujo` body class — disabling the
 plugin restores Obsidian's native rendering.
 
+## Known Limitations
+
+This plugin only works in Live Preview mode for the time being.
+
 ## Acknowledgements
 
 Inspired by [obsidian-bujo-bullets](https://github.com/frankolson/obsidian-bujo-bullets) by Frank Olson.
