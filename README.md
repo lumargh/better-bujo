@@ -14,27 +14,21 @@ At the beginning of a line:
 | `- [x]`    | `x`        | Done                          |
 | `- [>]`    | `>`        | Migrated to the month note    |
 | `- [<]`    | `<`        | Sent to the future log        |
-| `- [o]`    | `⊙`        | Event                         |
-| `- [O]`    | `⊗`        | Completed event               |
+| `- [o]`    | `○`        | Event                         |
+| `- [O]`    | `●`        | Completed event               |
 | `~ ...`    | `~` (styled) | An emotion or a thought     |
 
 ## How it works
 
-The marker glyphs are pure CSS, keyed on the `data-task` attribute Obsidian
-sets on each list item, so they render identically in Reading mode and Live
-Preview. Emotion lines (`~ …`) are tagged by a small markdown post-processor
-and a CodeMirror extension so they can be styled.
-
-All styling is scoped under a `better-bujo` body class — disabling the
-plugin restores Obsidian's native rendering.
+A regular `-` dash triggers a list, just as normal. A markdown task turns into a `•` bullet. Click it to complete the task. A migrated task looks like `>`, and a task sent to the future log looks like `<`. Events look like a small circle. Click it to complete the circle.
 
 ## Known Limitations
 
-This plugin only works in Live Preview mode for the time being.
+This plugin does not work with the Border theme.
 
 ## Acknowledgements
 
-Inspired by [obsidian-bujo-bullets](https://github.com/frankolson/obsidian-bujo-bullets) by Frank Olson.
+Inspired by [obsidian-bujo-bullets](https://github.com/frankolson/obsidian-bujo-bullets) by Frank Olson and Bullet Journaling by Ryder Carroll.
 
 ## My other Obsidian plugins
 
