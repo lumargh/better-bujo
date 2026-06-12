@@ -4,192 +4,275 @@
  * each list item, in both Reading mode and Live Preview):
  *
  *     - [ ]   open task        → •      (a bullet point)
- *     - [x]   done             → x
+ *     - [x]   done             → ⨯      (text stays normal; optional strike
+ *                                        via the bb-strike-done body class)
  *     - [>]   migrated (month) → >
  *     - [<]   future log       → <
- *     - [o]   event            → ⊙
- *     - [O]   event done       → ⊗
+ *     - [o]   event            → ○      (click toggles o ↔ O)
+ *     - [O]   event done       → ●      (same size as ○; click toggles back)
+ *     - [-]   cancelled        → •, marker and whole line struck through, faint
  *     - …     plain list item  → –      (en dash, not a bullet)
  *     ~ …     emotion/thought  → styled line (the `~` glyph stays as typed)
  *
- * Every rule is scoped under `.better-bujo` (added to <body> on load) so
- * disabling the plugin restores Obsidian's native rendering. */
+ * Strategy: never remove Obsidian's native marker elements — restyle them in
+ * place. The checkbox <input> keeps its box (which Obsidian and themes already
+ * position correctly in both modes) and the glyph is drawn on its ::after,
+ * replacing the default checkmark mask. Likewise the plain-bullet dot lives on
+ * `.list-bullet::after` in BOTH modes, so one rule turns it into a dash. This
+ * way alignment is inherited from whatever theme is active, with no hand-tuned
+ * offsets.
+ *
+ * Every rule is scoped under `.better-bujo` (added to each window's <body> on
+ * load) so disabling the plugin restores Obsidian's native rendering. */
 
 .better-bujo {
 	--bb-marker-color: var(--text-muted);
 	--bb-event-color: var(--text-accent);
 	--bb-done-color: var(--text-faint);
-	/* Horizontal nudge that lines the Live Preview en dash up with the task /
-	   event marker column. Cancels the `padding-inline-start` Obsidian puts on
-	   `.cm-formatting-list-ul` (= --list-indent-editing, 0.75em by default).
-	   Tweak if your theme's list metrics differ. */
-	--bb-lp-dash-shift: -1.1em;
+	/* Marker column geometry in Live Preview, expressed in checkbox-size units
+	   so it is independent of font sizes: lead = space before the marker box,
+	   gap = space between marker box and text. Values match Obsidian's default
+	   metrics at the default font size. */
+	--bb-marker-lead: calc(var(--checkbox-size) * 0.45);
+	--bb-marker-gap: calc(var(--checkbox-size) * 0.22);
+}
+
+/* Normalize the checkbox's lead-in/gap under one ruler. Obsidian's native
+   chain mixes em units that resolve against different font sizes (the label's
+   -0.25em uses the editor font, the input's 0.85em its own UI font), which
+   makes it impossible for other marker types to reproduce — so plain bullets
+   and emotion markers below reuse these same variables instead. */
+.better-bujo .markdown-source-view.mod-cm6 .task-list-label {
+	margin-inline-start: 0;
+}
+.better-bujo .markdown-source-view.mod-cm6 .task-list-label .task-list-item-checkbox {
+	margin-inline-start: var(--bb-marker-lead);
+	margin-inline-end: var(--bb-marker-gap);
 }
 
 /* ===========================================================================
- * Task / event markers — replace the checkbox with a glyph.
- * The glyph is emitted via ::before; the native <input> is hidden.
+ * Task / event markers — restyle the native checkbox into a glyph.
+ *
+ * The <input> stays in the layout (its box is what themes align), but its
+ * chrome is stripped in every state: Obsidian's defaults give it a border,
+ * an accent background when :checked, and a checkmark mask on :checked::after.
  * ======================================================================== */
 
-/* --- Reading mode -------------------------------------------------------- */
-
-.better-bujo .markdown-rendered li.task-list-item {
-	list-style: none;
+.better-bujo input.task-list-item-checkbox,
+.better-bujo input.task-list-item-checkbox:checked,
+.better-bujo input.task-list-item-checkbox:hover,
+.better-bujo input.task-list-item-checkbox:active,
+.better-bujo input.task-list-item-checkbox:focus {
+	-webkit-appearance: none;
+	appearance: none;
+	border: none;
+	box-shadow: none;
+	background-color: transparent;
+	filter: none;
+	/* Some themes (e.g. Minimal) restyle alternative checkboxes themselves:
+	   they mask the input and rotate it (Minimal turns [>] into a ∨ via
+	   rotate(90deg)). Neutralize so the glyph on ::after renders as typed. */
+	transform: none;
+	-webkit-mask-image: none;
+	mask-image: none;
 }
 
-.better-bujo .markdown-rendered li.task-list-item input.task-list-item-checkbox {
-	display: none;
-}
-
-.better-bujo .markdown-rendered li.task-list-item::before {
-	content: "•"; /* open task — the default for any unrecognised marker */
-	display: inline-block;
-	width: 1.5em;
-	/* margin-left: -0.2em;
-	margin-right: 0.3em;
-	padding-right: 1em !important; */
-	text-align: center;
+/* The glyph. Absolutely positioned over the checkbox box and centered, so a
+   glyph larger than the box overflows symmetrically without shifting any
+   text. `content` below is the open-task default; data-task rules swap it. */
+.better-bujo input.task-list-item-checkbox::after {
+	content: "\2022"; /* • — open task, the default for any unrecognised marker */
+	position: absolute;
+	inset: 0;
+	width: auto;
+	height: auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background-color: transparent;
+	-webkit-mask-image: none;
+	mask-image: none;
 	color: var(--bb-marker-color);
-	font-variant-numeric: tabular-nums;
-}
-
-.better-bujo .markdown-rendered li.task-list-item[data-task="x"]::before,
-.better-bujo .markdown-rendered li.task-list-item[data-task="X"]::before {
-	content: "\2A2F"; /* ⨯ */
-	color: var(--bb-done-color);
-	font-size: 1.3em;
-}
-.better-bujo .markdown-rendered li.task-list-item[data-task=">"]::before {
-	content: ">";
-}
-.better-bujo .markdown-rendered li.task-list-item[data-task="<"]::before {
-	content: "<";
-}
-.better-bujo .markdown-rendered li.task-list-item[data-task="o"]::before {
-	content: "\2299"; /* ⊙ */
-	/* color: var(--bb-event-color); */
-}
-.better-bujo .markdown-rendered li.task-list-item[data-task="O"]::before {
-	content: "\2297"; /* ⊗ */
-	/* color: var(--bb-done-color); */
-}
-.better-bujo .markdown-rendered li.task-list-item[data-task="~"]::before {
-	content: "~";
-	color: var(--bb-marker-color);
-}
-
-/* Plain "- " items reuse the exact same marker box as tasks, so the dash
-   shares the one marker column. Hide Obsidian's bullet disc and draw a dash. */
-.better-bujo .markdown-rendered ul > li:not(.task-list-item) {
-	list-style: none;
-}
-.better-bujo .markdown-rendered ul > li:not(.task-list-item) > .list-bullet {
-	display: none;
-}
-.better-bujo .markdown-rendered ul > li:not(.task-list-item)::before {
-	content: "\2013"; /* – */
-	display: inline-block;
-	width: 1.5em;
-	text-align: center;
-	color: var(--bb-marker-color);
-	font-variant-numeric: tabular-nums;
-}
-
-/* --- Live Preview / Source mode ------------------------------------------ */
-
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line .task-list-label > input.task-list-item-checkbox {
-	display: none;
-}
-
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line .task-list-label::before {
-	content: "•"; /* open task — default */
-	display: inline-block;
-	width: 1.2em;
-	text-align: center;
-	color: var(--bb-marker-color);
-	font-variant-numeric: tabular-nums;
-	margin-right: 0.4em;
-}
-
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="x"] .task-list-label::before,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="X"] .task-list-label::before {
-	content: "\2A2F"; /* ⨯ */
-	/* color: var(--bb-done-color); */
-	font-size: 1.7em;
-	margin-top: -1em;
-	margin-right: 0em;
-	margin-bottom: -1em;
-	padding-bottom: -1em;
-	margin-left: -0.2em;
-}
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task=">"] .task-list-label::before {
-	content: ">";
-}
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="<"] .task-list-label::before {
-	content: "<";
-}
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="o"] .task-list-label::before {
-	content: "\2299"; /* ⊙ */
-	font-size: 1.4em !important;
-	margin-left: -0.15em;
-	margin-right: 0.1em;
-	margin-top: -1.1em;
-	/* color: var(--bb-event-color); */
-}
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="O"] .task-list-label::before {
-	content: "\2297"; /* ⊗ */
-	/* color: var(--bb-done-color); */
-}
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="~"] .task-list-label::before {
-	content: "~";
-	color: var(--bb-marker-color);
-}
-
-/* Non-standard markers (>, <, o, O, ~) are not a checkbox state, so clicking
-   them shouldn't toggle anything. The hidden <input> still forwards clicks via
-   its <label>, so make those labels non-interactive — a click just places the
-   cursor. The standard open/done pair ([ ] ↔ [x]) stays clickable. */
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task=">"] .task-list-label,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="<"] .task-list-label,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="o"] .task-list-label,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="O"] .task-list-label,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="~"] .task-list-label {
-	pointer-events: none;
-}
-
-/* ===========================================================================
- * Events (⊙ / ⊗) share one colour, size and font so the open and completed
- * markers match in both modes.
- * ======================================================================== */
-
-.better-bujo .markdown-rendered li.task-list-item[data-task="o"]::before,
-.better-bujo .markdown-rendered li.task-list-item[data-task="O"]::before,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="o"] .task-list-label::before,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="O"] .task-list-label::before {
-	/* color: var(--bb-event-color); */
 	font-family: var(--font-text);
-	font-size: 1em;
+	font-size: var(--checkbox-size);
 	line-height: 1;
 }
 
+/* Glyphs per marker. `data-task` lives on the <li> in Reading mode (the
+   checkbox is its direct child, or inside a <p> in loose lists) and on the
+   line div in Live Preview. Child combinators in Reading mode keep nested
+   list items from inheriting their parent's marker. */
+
+/* ⨯ — drawn as two crossing diagonals (like the event circles) instead of a
+   font glyph, so it is dead-centered in the marker box in every font/theme.
+   Size and stroke derive from --checkbox-size. */
+.better-bujo li[data-task="x"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="x"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="x"] input.task-list-item-checkbox::after,
+.better-bujo li[data-task="X"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="X"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="X"] input.task-list-item-checkbox::after {
+	--bb-x-stroke: max(1.5px, calc(var(--checkbox-size) * 0.09));
+	content: "⨯";
+	margin: 0.045em 0 0 0.17em;
+	font-size: 1.5em;
+	width: calc(var(--checkbox-size) * 0.55);
+	height: calc(var(--checkbox-size) * 0.55);
+	/* background:
+		linear-gradient(45deg,
+			transparent calc(50% - var(--bb-x-stroke) / 2),
+			var(--bb-marker-color) 0,
+			var(--bb-marker-color) calc(50% + var(--bb-x-stroke) / 2),
+			transparent 0),
+		linear-gradient(-45deg,
+			transparent calc(50% - var(--bb-x-stroke) / 2),
+			var(--bb-marker-color) 0,
+			var(--bb-marker-color) calc(50% + var(--bb-x-stroke) / 2),
+			transparent 0); */
+}
+
+/* Done tasks read like any other line: undo Obsidian's native fade and
+   strikethrough. The strike comes back when the user enables it in settings
+   (the plugin then adds bb-strike-done next to better-bujo on <body>). */
+.better-bujo .markdown-rendered ul > li.task-list-item[data-task="x"],
+.better-bujo .markdown-rendered ul > li.task-list-item[data-task="X"],
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="x"],
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="X"] {
+	text-decoration: none;
+	color: inherit;
+}
+
+.better-bujo.bb-strike-done .markdown-rendered ul > li.task-list-item[data-task="x"],
+.better-bujo.bb-strike-done .markdown-rendered ul > li.task-list-item[data-task="X"],
+.better-bujo.bb-strike-done .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="x"],
+.better-bujo.bb-strike-done .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="X"] {
+	text-decoration: line-through;
+}
+
+.better-bujo li[data-task=">"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task=">"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task=">"] input.task-list-item-checkbox::after {
+	content: ">";
+	font-size: 1em;
+	font-weight: 500;
+	margin-top: 0.05em;
+}
+
+.better-bujo li[data-task="<"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="<"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="<"] input.task-list-item-checkbox::after {
+	content: "<";
+	font-size: 1em;
+	font-weight: 500;
+	margin-bottom: 0.05em;
+}
+
+/* Events (o / O) — drawn as a CSS circle rather than font glyphs (○ ● from a
+   font come from whatever fallback has them, so their sizes can differ). The
+   circle lives on ::before: open is the outline, done the same circle filled.
+   All dimensions derive from --checkbox-size, so the pair is always equal. */
+.better-bujo li[data-task="o"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="o"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="o"] input.task-list-item-checkbox::before,
+.better-bujo li[data-task="O"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="O"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	margin: 0.4em 0 0 0.3em;
+	box-sizing: border-box;
+	width: calc(var(--checkbox-size) * 0.5);
+	height: calc(var(--checkbox-size) * 0.5);
+	border: max(1px, calc(var(--checkbox-size) * 0.08)) solid var(--bb-marker-color);
+	border-radius: 50%;
+}
+
+/* No inner symbol for either event state — blank out the default •. */
+.better-bujo li[data-task="o"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="o"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="o"] input.task-list-item-checkbox::after,
+.better-bujo li[data-task="O"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="O"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::after {
+	content: "";
+}
+
+/* ● — completed event: the same circle, filled. */
+.better-bujo li[data-task="O"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="O"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::before {
+	background-color: var(--bb-marker-color);
+}
+
+.better-bujo li[data-task="~"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="~"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="~"] input.task-list-item-checkbox::after {
+	content: "~";
+}
+
+/* Cancelled tasks: the whole line is struck through and faint, like crossing
+   out an irrelevant task on paper. Mirrors Obsidian's native done styling,
+   which targets these same elements. The marker's ::after is absolutely
+   positioned, so the line's text-decoration doesn't propagate into it — the
+   strike on the • is applied explicitly below. */
+.better-bujo .markdown-rendered li[data-task="-"],
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="-"] {
+	text-decoration: line-through;
+	color: var(--bb-done-color);
+}
+
+.better-bujo li[data-task="-"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="-"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="-"] input.task-list-item-checkbox::after {
+	text-decoration: line-through;
+	color: var(--bb-done-color);
+}
+
+/* Non-standard markers (>, <, ~, -) are not a checkbox state, so clicking
+   them shouldn't toggle anything. In Live Preview the click is forwarded by
+   the <label>; in Reading mode the <input> itself is the target. The standard
+   open/done pair ([ ] ↔ [x]) stays clickable in both modes, and events
+   (o / O) stay clickable too — the plugin toggles them o ↔ O. */
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task=">"] .task-list-label,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="<"] .task-list-label,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="~"] .task-list-label,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="-"] .task-list-label,
+.better-bujo .markdown-rendered li[data-task=">"] > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="<"] > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="~"] > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="-"] > input.task-list-item-checkbox {
+	pointer-events: none;
+}
+
+/* Event markers toggle on click — show it. */
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="o"] input.task-list-item-checkbox,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="o"] > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="O"] > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="o"] > p > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="O"] > p > input.task-list-item-checkbox {
+	cursor: var(--cursor-link);
+}
+
 /* ===========================================================================
- * Plain "- " list items → en dash instead of a bullet (Live Preview).
+ * Plain "- " list items → en dash instead of a bullet.
  *
- * Obsidian draws the bullet as a disc on `.list-bullet::after` (content is a
- * zero-width space; the dot is `background-color` + `border-radius`). We
- * neutralise that disc and put an en dash in its place rather than appending,
- * then shift the dash into the marker column. (Reading mode is handled above
- * via the shared marker box.)
+ * In both modes Obsidian draws the bullet dot on `.list-bullet::after`
+ * (absolutely positioned and centered inside the span; the dot itself is
+ * `background-color` + `border-radius` on a 0.3em box). Swapping the dot for
+ * an en dash inside that same box inherits the theme's bullet position
+ * exactly. The span's own text (the typed `-` in Live Preview) stays hidden
+ * by Obsidian's `color: transparent`, which we leave alone.
+ *
+ * Live Preview is scoped to non-task lines so the dash never bleeds onto the
+ * raw `- [x]` text of an active task line; Reading-mode task bullets are
+ * already `display: none` natively.
  * ======================================================================== */
 
+.better-bujo .markdown-rendered .list-bullet::after,
 .better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line:not(.HyperMD-task-line) .list-bullet::after {
 	content: "\2013"; /* – */
-	/* Relative positioning shifts only the dash glyph into the marker column;
-	   the line's text stays put (a margin here is absorbed by the parent's
-	   padding-inline-start, which is why it had no effect). */
-	position: relative;
-	inset-inline-start: var(--bb-lp-dash-shift);
-	margin-right: -0.5em; /* less negative = more space before the text */
 	width: auto;
 	height: auto;
 	border: none;
@@ -197,6 +280,17 @@
 	background-color: transparent;
 	transform: none;
 	color: var(--bb-marker-color);
+	line-height: 1;
+}
+
+/* Align plain-item text with task text in Live Preview by giving the bullet
+   span the exact marker box of a task checkbox: lead → box → gap → text. The
+   bullet's parent span carries the list's --list-padding-inline-start, so
+   subtract it from the lead. */
+.better-bujo .markdown-source-view.mod-cm6.is-live-preview .HyperMD-list-line:not(.HyperMD-task-line) .list-bullet {
+	width: var(--checkbox-size);
+	margin-inline-start: calc(var(--bb-marker-lead) - var(--list-padding-inline-start));
+	margin-inline-end: var(--bb-marker-gap);
 }
 
 /* ===========================================================================
@@ -206,4 +300,34 @@
 .better-bujo .bb-emotion {
 	font-style: italic;
 	color: var(--text-muted);
+}
+
+/* Reading mode: the post-processor moves the `~` into .bb-emotion-marker and
+   strips it from the text. Indent the paragraph like a list item (3ch, same
+   as .markdown-rendered li) and clone the reading checkbox chain
+   (-1.5 / 1 / 0.5 × checkbox-size) so marker and text join the columns. */
+.better-bujo .markdown-rendered .bb-emotion {
+	margin-inline-start: 3ch;
+}
+
+.better-bujo .markdown-rendered .bb-emotion .bb-emotion-marker {
+	display: inline-block;
+	width: var(--checkbox-size);
+	margin-inline-start: calc(var(--checkbox-size) * -1.5);
+	margin-inline-end: calc(var(--checkbox-size) * 0.5);
+	text-align: center;
+	color: var(--bb-marker-color);
+}
+
+/* In Live Preview the leading `~` is wrapped in .bb-emotion-marker by the
+   editor extension. Give it the same marker box as a task checkbox (no list
+   padding on these lines) so the `~` sits in the marker column and the text
+   aligns with task text. */
+.better-bujo .markdown-source-view.mod-cm6.is-live-preview .bb-emotion-marker {
+	display: inline-block;
+	width: var(--checkbox-size);
+	margin-inline-start: var(--bb-marker-lead);
+	margin-inline-end: var(--bb-marker-gap);
+	text-align: center;
+	color: var(--bb-marker-color);
 }

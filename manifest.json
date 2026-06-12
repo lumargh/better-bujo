@@ -2,7 +2,7 @@
 	"id": "better-bujo",
 	"name": "Better Bujo",
 	"version": "0.1.0",
-	"minAppVersion": "1.0.0",
+	"minAppVersion": "1.5.7",
 	"description": "Render bullet-journal markers (events, migration, future log, emotions) instead of checkboxes.",
 	"author": "Sebastien",
 	"authorUrl": "https://github.com/lumargh",
