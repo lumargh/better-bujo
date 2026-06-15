@@ -81,10 +81,14 @@ const emotionExtension = ViewPlugin.fromClass(EmotionView, {
 
 interface BetterBujoSettings {
 	strikeDoneTasks: boolean;
+	dottedGrid: boolean;
+	gridSpacing: number;
 }
 
 const DEFAULT_SETTINGS: BetterBujoSettings = {
 	strikeDoneTasks: false,
+	dottedGrid: false,
+	gridSpacing: 20,
 };
 
 export default class BetterBujoPlugin extends Plugin {
@@ -163,7 +167,8 @@ export default class BetterBujoPlugin extends Plugin {
 
 	onunload(): void {
 		for (const doc of this.styledDocs) {
-			doc.body.classList.remove('better-bujo', 'bb-strike-done');
+			doc.body.classList.remove('better-bujo', 'bb-strike-done', 'bb-dotted-grid');
+			doc.body.style.removeProperty('--bb-grid-spacing');
 		}
 		this.styledDocs.clear();
 	}
@@ -179,6 +184,8 @@ export default class BetterBujoPlugin extends Plugin {
 	private styleDoc(doc: Document): void {
 		doc.body.classList.add('better-bujo');
 		doc.body.classList.toggle('bb-strike-done', this.settings.strikeDoneTasks);
+		doc.body.classList.toggle('bb-dotted-grid', this.settings.dottedGrid);
+		doc.body.style.setProperty('--bb-grid-spacing', `${this.settings.gridSpacing}px`);
 		if (!this.styledDocs.has(doc)) {
 			this.styledDocs.add(doc);
 			// Capture phase, so this runs before Obsidian's own checkbox
@@ -264,6 +271,32 @@ class BetterBujoSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.strikeDoneTasks)
 					.onChange(async (value) => {
 						this.plugin.settings.strikeDoneTasks = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName('Dotted grid')
+			.setDesc('Show a dotted grid background that scrolls with the page, like dot-grid paper.')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.dottedGrid)
+					.onChange(async (value) => {
+						this.plugin.settings.dottedGrid = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName('Grid spacing')
+			.setDesc('Distance between dots, in pixels. Smaller values make a tighter grid.')
+			.addSlider((slider) =>
+				slider
+					.setLimits(10, 50, 1)
+					.setValue(this.plugin.settings.gridSpacing)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.gridSpacing = value;
 						await this.plugin.saveSettings();
 					})
 			);

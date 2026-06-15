@@ -331,3 +331,77 @@
 	text-align: center;
 	color: var(--bb-marker-color);
 }
+
+/* ===========================================================================
+ * Dotted grid — optional dot-grid paper background (bb-dotted-grid on <body>).
+ *
+ * Vertical extent: the sizer (.cm-sizer / .markdown-preview-sizer) wraps the
+ * note content plus the embedded backlinks ("Backlinks in document"), so the
+ * grid spans exactly that — it scrolls with the text and stops at the
+ * backlinks instead of filling the rest of the pane. The backlinks block
+ * itself sits on a full-width opaque cover (its own pseudo-element, painted
+ * between the dots and the backlinks content), so the grid visually ends
+ * where the backlinks begin.
+ *
+ * Horizontal extent: under readable line length the sizer is width-capped
+ * (max-width: var(--file-line-width)), so the dots are drawn on a
+ * pseudo-element stretched to the full pane width (50% - 50vw spill on each
+ * side); the scroller clips the spill so no horizontal scrollbar appears.
+ * z-index: 0 on the sizer opens a stacking context that sandwiches the
+ * z-index: -1 dots between the pane background and the text.
+ *
+ * Spacing comes from --bb-grid-spacing, set inline on <body> from the
+ * plugin's "Grid spacing" setting.
+ * ======================================================================== */
+
+.better-bujo.bb-dotted-grid {
+	--bb-grid-dot-color: var(--background-modifier-border);
+}
+
+.better-bujo.bb-dotted-grid .markdown-source-view.mod-cm6 .cm-sizer,
+.better-bujo.bb-dotted-grid .markdown-preview-view .markdown-preview-sizer {
+	position: relative;
+	z-index: 0;
+}
+
+.better-bujo.bb-dotted-grid .markdown-source-view.mod-cm6 .cm-sizer::before,
+.better-bujo.bb-dotted-grid .markdown-preview-view .markdown-preview-sizer::before {
+	content: '';
+	position: absolute;
+	inset: 0 calc(50% - 50vw);
+	z-index: -1;
+	pointer-events: none;
+	background-image: radial-gradient(circle, var(--bb-grid-dot-color) 1px, transparent 1.5px);
+	background-size: var(--bb-grid-spacing, 20px) var(--bb-grid-spacing, 20px);
+}
+
+/* Mask the dots behind (and beside) the embedded backlinks. Same negative
+   z-index layer as the grid pseudo-element; tree order puts the cover on
+   top of the dots, and the backlinks content paints above both. */
+.better-bujo.bb-dotted-grid .embedded-backlinks {
+	position: relative;
+}
+
+.better-bujo.bb-dotted-grid .embedded-backlinks::before {
+	content: '';
+	position: absolute;
+	inset: 0 calc(50% - 50vw);
+	z-index: -1;
+	pointer-events: none;
+	background-color: var(--background-primary);
+}
+
+/* Keep the pseudo-element's horizontal spill from creating a scrollbar.
+   (clip computes to hidden here since overflow-y is a scroll value.)
+   The editor scroller needs overflow-y stated explicitly: CodeMirror only
+   sets overflow-x: auto, and its vertical scrolling relies on overflow-y:
+   visible computing to auto against that — overriding overflow-x with a
+   non-scrolling value would otherwise turn vertical scrolling off. */
+.better-bujo.bb-dotted-grid .markdown-source-view.mod-cm6 .cm-scroller {
+	overflow-y: auto;
+}
+
+.better-bujo.bb-dotted-grid .markdown-source-view.mod-cm6 .cm-scroller,
+.better-bujo.bb-dotted-grid .markdown-preview-view {
+	overflow-x: clip;
+}
