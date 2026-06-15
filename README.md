@@ -3,6 +3,8 @@
 Render bullet-journal (BuJo) markers in your notes instead of Obsidian's
 checkboxes — in both **Reading mode** and **Live Preview**.
 
+![Better Bujo demo](assets/bujo-demo.gif)
+
 ## Markers
 
 At the beginning of a line:
