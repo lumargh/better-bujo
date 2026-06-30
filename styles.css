@@ -3,15 +3,19 @@
  * Canonical glyph table (keyed on the `data-task` attribute Obsidian sets on
  * each list item, in both Reading mode and Live Preview):
  *
- *     - [ ]   open task        → •      (a bullet point)
- *     - [x]   done             → ⨯      (text stays normal; optional strike
+ *     - [ ]   open task        → •      (small dot; click cycles → / → x → · )
+ *     - [/]   task in progress → /      (the ✗'s first stroke; part of the cycle)
+ *     - [x]   done             → ✗      (two pen-strokes; optional strike
  *                                        via the bb-strike-done body class)
  *     - [>]   migrated (month) → >
  *     - [<]   future log       → <
- *     - [o]   event            → ○      (click toggles o ↔ O)
- *     - [O]   event done       → ●      (same size as ○; click toggles back)
+ *     - [o]   event            → ○      (click cycles o → p → O → o)
+ *     - [p]   event in progress→ ◐      (half-filled ring; part of the o/p/O cycle)
+ *     - [O]   event done       → ●      (same size as ○; click cycles back)
  *     - [-]   cancelled        → •, marker and whole line struck through, faint
  *     - …     plain list item  → –      (en dash, not a bullet)
+ *     - [9:30 AM] …  time event → clock  (hand-drawn clock on the bullet; the
+ *                                        time stays as text, brackets dropped)
  *     ~ …     emotion/thought  → styled line (the `~` glyph stays as typed)
  *
  * Strategy: never remove Obsidian's native marker elements — restyle them in
@@ -35,6 +39,27 @@
 	   metrics at the default font size. */
 	--bb-marker-lead: calc(var(--checkbox-size) * 0.45);
 	--bb-marker-gap: calc(var(--checkbox-size) * 0.22);
+	/* Shared pen-stroke for the in-progress slash and the two strokes of the
+	   done ✗, so the slash is literally the ✗'s first stroke at the same angle. */
+	--bb-stroke-w: max(1.5px, calc(var(--checkbox-size) * 0.1));
+	--bb-stroke-h: calc(var(--checkbox-size) * 0.62);
+	/* Hand-drawn clock face for time-based events (`- [9:30 AM] …`); used as a
+	   mask so it takes --bb-marker-color, and roughened further by --bb-rough.
+	   The face is a wobbly path with uneven radii that overshoots where it
+	   closes (the way a penned circle does), and the hands are slightly skew. */
+	--bb-clock-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.3C16.8 3 21.2 7.6 21 12.2C20.8 16.9 16.5 21.3 11.8 21C7 20.7 2.8 16.4 3 11.6C3.2 7.1 7.4 3.5 12.7 3.1'/%3E%3Cpath d='M12.1 12.2L11.7 7.4'/%3E%3Cpath d='M12.1 12.2L15.7 13.8'/%3E%3C/svg%3E");
+	/* Wet-ink bleed: a tight dark halo plus a soft outer one and a faint
+	   bottom-right pooling, so each glyph reads like ink soaked into paper
+	   rather than a crisp printed mark. Reused by every marker below. */
+	--bb-ink-shadow:
+		0 0 0.03em rgba(42, 22, 10, 0.55),
+		0 0 0.1em rgba(55, 28, 12, 0.22),
+		0.01em 0.015em 0.05em rgba(30, 14, 6, 0.18);
+	/* The actual hand-drawn effect: an inline SVG turbulence filter warps the
+	   rendered glyph edges so the otherwise-perfect font characters get the
+	   uneven wobble of a penned mark. Tune the wobble with baseFrequency (how
+	   often it waves) and scale (how far it pushes the edges). */
+	--bb-rough: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.12' numOctaves='2' seed='7' result='n'/%3E%3CfeDisplacementMap in='SourceGraphic' in2='n' scale='1.6'/%3E%3C/filter%3E%3C/svg%3E#r");
 }
 
 /* Normalize the checkbox's lead-in/gap under one ruler. Obsidian's native
@@ -96,6 +121,39 @@
 	font-family: var(--font-text);
 	font-size: var(--checkbox-size);
 	line-height: 1;
+	/* Hand-drawn: warp the glyph edges, add ink bleed, and a touch of off-axis
+	   tilt so the mark never sits perfectly square, the way a pen wouldn't. */
+	filter: var(--bb-rough);
+	text-shadow: var(--bb-ink-shadow);
+	transform: rotate(-4deg);
+}
+
+/* Open task ( - [ ] ) → a hand-drawn filled dot instead of the font •.
+   Obsidian leaves data-task off (or empty) on unchecked tasks, so target the
+   task checkbox whose line carries no real marker. `inset: 0; margin: auto`
+   centers the dot in the same box the • occupied. */
+.better-bujo .markdown-rendered li.task-list-item:is(:not([data-task]), [data-task=""], [data-task=" "]) > input.task-list-item-checkbox::before,
+.better-bujo .markdown-rendered li.task-list-item:is(:not([data-task]), [data-task=""], [data-task=" "]) > p > input.task-list-item-checkbox::before,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line:is(:not([data-task]), [data-task=""], [data-task=" "]) input.task-list-item-checkbox::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	margin: auto;
+	box-sizing: border-box;
+	width: calc(var(--checkbox-size) * 0.26);
+	height: calc(var(--checkbox-size) * 0.26);
+	background-color: var(--bb-marker-color);
+	/* Lopsided radii + tilt + ink bleed match the event rings' hand-drawn look. */
+	border-radius: 47% 53% 52% 48% / 53% 47% 53% 47%;
+	transform: rotate(-8deg);
+	filter: var(--bb-rough);
+	box-shadow: var(--bb-ink-shadow);
+}
+
+.better-bujo .markdown-rendered li.task-list-item:is(:not([data-task]), [data-task=""], [data-task=" "]) > input.task-list-item-checkbox::after,
+.better-bujo .markdown-rendered li.task-list-item:is(:not([data-task]), [data-task=""], [data-task=" "]) > p > input.task-list-item-checkbox::after,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line:is(:not([data-task]), [data-task=""], [data-task=" "]) input.task-list-item-checkbox::after {
+	content: "";
 }
 
 /* Glyphs per marker. `data-task` lives on the <li> in Reading mode (the
@@ -103,32 +161,47 @@
    line div in Live Preview. Child combinators in Reading mode keep nested
    list items from inheriting their parent's marker. */
 
-/* ⨯ — drawn as two crossing diagonals (like the event circles) instead of a
-   font glyph, so it is dead-centered in the marker box in every font/theme.
-   Size and stroke derive from --checkbox-size. */
+/* ✗ done + / in-progress — drawn from identical rounded pen-strokes (not font
+   glyphs), so the in-progress slash is literally the ✗'s first (/) stroke at
+   the same angle, thickness and ink bleed. Each stroke is a centered rounded
+   bar; rotate(45deg) is the / diagonal. The done ✗ adds the mirror \ on
+   ::before below. */
+.better-bujo li[data-task="/"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="/"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="/"] input.task-list-item-checkbox::after,
 .better-bujo li[data-task="x"] > input.task-list-item-checkbox::after,
 .better-bujo li[data-task="x"] > p > input.task-list-item-checkbox::after,
 .better-bujo .HyperMD-task-line[data-task="x"] input.task-list-item-checkbox::after,
 .better-bujo li[data-task="X"] > input.task-list-item-checkbox::after,
 .better-bujo li[data-task="X"] > p > input.task-list-item-checkbox::after,
-.better-bujo .HyperMD-task-line[data-task="X"] input.task-list-item-checkbox::after {
-	--bb-x-stroke: max(1.5px, calc(var(--checkbox-size) * 0.09));
-	content: "⨯";
-	margin: 0.045em 0 0 0.17em;
-	font-size: 1.5em;
-	width: calc(var(--checkbox-size) * 0.55);
-	height: calc(var(--checkbox-size) * 0.55);
-	/* background:
-		linear-gradient(45deg,
-			transparent calc(50% - var(--bb-x-stroke) / 2),
-			var(--bb-marker-color) 0,
-			var(--bb-marker-color) calc(50% + var(--bb-x-stroke) / 2),
-			transparent 0),
-		linear-gradient(-45deg,
-			transparent calc(50% - var(--bb-x-stroke) / 2),
-			var(--bb-marker-color) 0,
-			var(--bb-marker-color) calc(50% + var(--bb-x-stroke) / 2),
-			transparent 0); */
+.better-bujo .HyperMD-task-line[data-task="X"] input.task-list-item-checkbox::after,
+.better-bujo li[data-task="x"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="x"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="x"] input.task-list-item-checkbox::before,
+.better-bujo li[data-task="X"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="X"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="X"] input.task-list-item-checkbox::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	margin: auto;
+	width: var(--bb-stroke-w);
+	height: var(--bb-stroke-h);
+	background-color: var(--bb-marker-color);
+	border-radius: var(--bb-stroke-w);
+	transform: rotate(45deg);
+	filter: var(--bb-rough);
+	box-shadow: var(--bb-ink-shadow);
+}
+
+/* The done ✗'s second stroke: the mirror diagonal. */
+.better-bujo li[data-task="x"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="x"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="x"] input.task-list-item-checkbox::before,
+.better-bujo li[data-task="X"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="X"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="X"] input.task-list-item-checkbox::before {
+	transform: rotate(-45deg);
 }
 
 /* Done tasks read like any other line: undo Obsidian's native fade and
@@ -176,7 +249,10 @@
 .better-bujo .HyperMD-task-line[data-task="o"] input.task-list-item-checkbox::before,
 .better-bujo li[data-task="O"] > input.task-list-item-checkbox::before,
 .better-bujo li[data-task="O"] > p > input.task-list-item-checkbox::before,
-.better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::before {
+.better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::before,
+.better-bujo li[data-task="p"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="p"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="p"] input.task-list-item-checkbox::before {
 	content: "";
 	position: absolute;
 	inset: 0;
@@ -185,16 +261,25 @@
 	width: calc(var(--checkbox-size) * 0.5);
 	height: calc(var(--checkbox-size) * 0.5);
 	border: max(1px, calc(var(--checkbox-size) * 0.08)) solid var(--bb-marker-color);
-	border-radius: 50%;
+	/* Lopsided radii + tilt turn the perfect CSS circle into a wobbly,
+	   hand-drawn ring; the ink shadow makes the stroke bleed like the glyphs. */
+	border-radius: 47% 53% 52% 48% / 53% 47% 53% 47%;
+	transform: rotate(-8deg);
+	filter: var(--bb-rough);
+	box-shadow: var(--bb-ink-shadow);
 }
 
-/* No inner symbol for either event state — blank out the default •. */
+/* No inner symbol for the event states — blank out the • that would otherwise
+   sit inside the ring. */
 .better-bujo li[data-task="o"] > input.task-list-item-checkbox::after,
 .better-bujo li[data-task="o"] > p > input.task-list-item-checkbox::after,
 .better-bujo .HyperMD-task-line[data-task="o"] input.task-list-item-checkbox::after,
 .better-bujo li[data-task="O"] > input.task-list-item-checkbox::after,
 .better-bujo li[data-task="O"] > p > input.task-list-item-checkbox::after,
-.better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::after {
+.better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::after,
+.better-bujo li[data-task="p"] > input.task-list-item-checkbox::after,
+.better-bujo li[data-task="p"] > p > input.task-list-item-checkbox::after,
+.better-bujo .HyperMD-task-line[data-task="p"] input.task-list-item-checkbox::after {
 	content: "";
 }
 
@@ -203,6 +288,14 @@
 .better-bujo li[data-task="O"] > p > input.task-list-item-checkbox::before,
 .better-bujo .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox::before {
 	background-color: var(--bb-marker-color);
+}
+
+/* ◐ — in-progress event: the same ring, half filled. Clicking cycles the
+   event o → p → O → o. */
+.better-bujo li[data-task="p"] > input.task-list-item-checkbox::before,
+.better-bujo li[data-task="p"] > p > input.task-list-item-checkbox::before,
+.better-bujo .HyperMD-task-line[data-task="p"] input.task-list-item-checkbox::before {
+	background-image: linear-gradient(90deg, var(--bb-marker-color) 50%, transparent 50%);
 }
 
 .better-bujo li[data-task="~"] > input.task-list-item-checkbox::after,
@@ -245,13 +338,19 @@
 	pointer-events: none;
 }
 
-/* Event markers toggle on click — show it. */
+/* Event and in-progress markers act on click — show they're interactive. */
 .better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="o"] input.task-list-item-checkbox,
 .better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="O"] input.task-list-item-checkbox,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="p"] input.task-list-item-checkbox,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="/"] input.task-list-item-checkbox,
 .better-bujo .markdown-rendered li[data-task="o"] > input.task-list-item-checkbox,
 .better-bujo .markdown-rendered li[data-task="O"] > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="p"] > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="/"] > input.task-list-item-checkbox,
 .better-bujo .markdown-rendered li[data-task="o"] > p > input.task-list-item-checkbox,
-.better-bujo .markdown-rendered li[data-task="O"] > p > input.task-list-item-checkbox {
+.better-bujo .markdown-rendered li[data-task="O"] > p > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="p"] > p > input.task-list-item-checkbox,
+.better-bujo .markdown-rendered li[data-task="/"] > p > input.task-list-item-checkbox {
 	cursor: var(--cursor-link);
 }
 
@@ -278,9 +377,11 @@
 	border: none;
 	border-radius: 0;
 	background-color: transparent;
-	transform: none;
+	transform: rotate(-4deg);
 	color: var(--bb-marker-color);
 	line-height: 1;
+	filter: var(--bb-rough);
+	text-shadow: var(--bb-ink-shadow);
 }
 
 /* Align plain-item text with task text in Live Preview by giving the bullet
@@ -291,6 +392,37 @@
 	width: var(--checkbox-size);
 	margin-inline-start: calc(var(--bb-marker-lead) - var(--list-padding-inline-start));
 	margin-inline-end: var(--bb-marker-gap);
+}
+
+/* ===========================================================================
+ * Time-based events ("- [9:30 AM] …"). The plugin tags the item (.bb-clock in
+ * Reading mode, .bb-clock-line in Live Preview) and drops the brackets; here we
+ * swap the dash on the bullet for a hand-drawn clock face. `inset: 0; margin:
+ * auto` centers it in the same bullet box the dash used.
+ * ======================================================================== */
+
+.better-bujo .markdown-rendered li.bb-clock .list-bullet::after,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line.bb-clock-line .list-bullet::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	margin: auto;
+	width: calc(var(--checkbox-size) * 0.82);
+	height: calc(var(--checkbox-size) * 0.82);
+	border: none;
+	border-radius: 0;
+	background-color: var(--bb-marker-color);
+	-webkit-mask-image: var(--bb-clock-svg);
+	mask-image: var(--bb-clock-svg);
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-size: contain;
+	mask-size: contain;
+	transform: rotate(-4deg);
+	filter: var(--bb-rough);
+	text-shadow: none;
 }
 
 /* ===========================================================================
@@ -317,6 +449,8 @@
 	margin-inline-end: calc(var(--checkbox-size) * 0.5);
 	text-align: center;
 	color: var(--bb-marker-color);
+	filter: var(--bb-rough);
+	text-shadow: var(--bb-ink-shadow);
 }
 
 /* In Live Preview the leading `~` is wrapped in .bb-emotion-marker by the
@@ -330,6 +464,8 @@
 	margin-inline-end: var(--bb-marker-gap);
 	text-align: center;
 	color: var(--bb-marker-color);
+	filter: var(--bb-rough);
+	text-shadow: var(--bb-ink-shadow);
 }
 
 /* ===========================================================================
