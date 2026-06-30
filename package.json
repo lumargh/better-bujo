@@ -1,6 +1,6 @@
 {
 	"name": "better-bujo",
-	"version": "0.4.0",
+	"version": "0.4.1",
 	"description": "Render bullet-journal markers (events, migration, future log, emotions) instead of checkboxes.",
 	"main": "main.js",
 	"type": "module",

@@ -1,7 +1,7 @@
 
 
 import { App, Editor, MarkdownView, Menu, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { RangeSetBuilder } from '@codemirror/state';
+import { RangeSetBuilder, StateEffect } from '@codemirror/state';
 import {
 	Decoration,
 	DecorationSet,
@@ -131,17 +131,19 @@ const emotionExtension = ViewPlugin.fromClass(EmotionView, {
 	decorations: (value) => value.decorations,
 });
 
-// ---- Time-based events: `- [9:30 AM] …` → a clock on the bullet + the time. --
+// ---- Time-based events: `- [9:30 AM] …` ----
 
 // Group 1: the bullet lead. Group 2: the time inside the brackets.
 const TIME_EVENT_LINE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[(\d{1,2}:\d{2}\s*[AaPp][Mm])\]/;
 // The same time bracket, anchored to the start of a list item's rendered text.
 const TIME_EVENT_TEXT = /^\[(\d{1,2}:\d{2}\s*[AaPp][Mm])\]/;
 
-const clockLine = Decoration.line({ class: 'bb-clock-line' });
+// Dispatched to open editors when the timeEventStyle setting changes so the
+// decorations rebuild without waiting for a doc/viewport event.
+const refreshClockEffect = StateEffect.define<void>();
 
-// Live Preview: replace the `[9:30 AM]` source with just the time; the clock
-// glyph itself is drawn on the list bullet by styles.css.
+// Live Preview: replace `[9:30 AM]` with just the time text when the style
+// removes the brackets; the bullet glyph is drawn by styles.css.
 class ClockWidget extends WidgetType {
 	constructor(private readonly time: string) {
 		super();
@@ -156,59 +158,77 @@ class ClockWidget extends WidgetType {
 	}
 }
 
-class ClockView implements PluginValue {
-	decorations: DecorationSet;
+function makeClockExtension(getStyle: () => TimeEventStyle) {
+	class ClockView implements PluginValue {
+		decorations: DecorationSet;
 
-	constructor(view: EditorView) {
-		this.decorations = this.build(view);
-	}
-
-	update(update: ViewUpdate): void {
-		if (update.docChanged || update.viewportChanged || update.selectionSet) {
-			this.decorations = this.build(update.view);
+		constructor(view: EditorView) {
+			this.decorations = this.build(view);
 		}
-	}
 
-	private build(view: EditorView): DecorationSet {
-		const builder = new RangeSetBuilder<Decoration>();
-		const { selection } = view.state;
-		for (const { from, to } of view.visibleRanges) {
-			let pos = from;
-			while (pos <= to) {
-				const line = view.state.doc.lineAt(pos);
-				const match = TIME_EVENT_LINE.exec(line.text);
-				if (match) {
-					const time = match[2] ?? '';
-					const start = line.from + (match[1] ?? '').length;
-					const end = start + time.length + 2; // '[' + time + ']'
-					// Reveal the raw source while editing on the brackets.
-					const editing = selection.ranges.some((r) => r.from <= end && r.to >= start);
-					if (!editing) {
-						builder.add(line.from, line.from, clockLine);
-						builder.add(start, end, Decoration.replace({ widget: new ClockWidget(time) }));
-					}
-				}
-				pos = line.to + 1;
+		update(update: ViewUpdate): void {
+			if (
+				update.docChanged ||
+				update.viewportChanged ||
+				update.selectionSet ||
+				update.transactions.some((tr) => tr.effects.some((e) => e.is(refreshClockEffect)))
+			) {
+				this.decorations = this.build(update.view);
 			}
 		}
-		return builder.finish();
+
+		private build(view: EditorView): DecorationSet {
+			const style = getStyle();
+			const builder = new RangeSetBuilder<Decoration>();
+			const { selection } = view.state;
+			for (const { from, to } of view.visibleRanges) {
+				let pos = from;
+				while (pos <= to) {
+					const line = view.state.doc.lineAt(pos);
+					const match = TIME_EVENT_LINE.exec(line.text);
+					if (match) {
+						const time = match[2] ?? '';
+						const start = line.from + (match[1] ?? '').length;
+						const end = start + time.length + 2; // '[' + time + ']'
+						if (style === 'default') {
+							// Keep brackets visible; highlight with a mark span.
+							builder.add(start, end, Decoration.mark({ class: 'bb-clock-bracket' }));
+						} else {
+							// Reveal source while the cursor is on the brackets.
+							const editing = selection.ranges.some((r) => r.from <= end && r.to >= start);
+							if (!editing) {
+								const lineClass =
+									style === 'circle'
+										? 'bb-clock-line-circle'
+										: `bb-clock-line-${/p/i.test(time) ? 'pm' : 'am'}`;
+								builder.add(line.from, line.from, Decoration.line({ class: lineClass }));
+								builder.add(start, end, Decoration.replace({ widget: new ClockWidget(time) }));
+							}
+						}
+					}
+					pos = line.to + 1;
+				}
+			}
+			return builder.finish();
+		}
 	}
+	return ViewPlugin.fromClass(ClockView, { decorations: (v) => v.decorations });
 }
 
-const clockExtension = ViewPlugin.fromClass(ClockView, {
-	decorations: (value) => value.decorations,
-});
+type TimeEventStyle = 'default' | 'ampm' | 'circle';
 
 interface BetterBujoSettings {
 	strikeDoneTasks: boolean;
 	dottedGrid: boolean;
 	gridSpacing: number;
+	timeEventStyle: TimeEventStyle;
 }
 
 const DEFAULT_SETTINGS: BetterBujoSettings = {
 	strikeDoneTasks: false,
 	dottedGrid: false,
 	gridSpacing: 20,
+	timeEventStyle: 'default',
 };
 
 export default class BetterBujoPlugin extends Plugin {
@@ -299,8 +319,7 @@ export default class BetterBujoPlugin extends Plugin {
 				p.insertBefore(marker, first);
 			}
 
-			// Time-based events: tag `- [9:30 AM] …` items and drop the brackets
-			// so styles.css can draw a clock on the bullet, leaving the time text.
+			// Time-based events: render `- [9:30 AM] …` according to the setting.
 			for (const li of Array.from(el.querySelectorAll('li:not(.task-list-item)'))) {
 				const host = li.firstElementChild instanceof HTMLParagraphElement ? li.firstElementChild : li;
 				let node: ChildNode | null = host.firstChild;
@@ -312,13 +331,28 @@ export default class BetterBujoPlugin extends Plugin {
 				if (!node || !match) {
 					continue;
 				}
-				li.addClass('bb-clock');
-				node.textContent = text.replace(TIME_EVENT_TEXT, match[1] ?? '');
+				const time = match[1] ?? '';
+				const full = match[0];
+				if (this.settings.timeEventStyle === 'default') {
+					// Keep brackets; wrap them in a highlight span.
+					node.textContent = text.slice(full.length);
+					const span = li.ownerDocument.createElement('span');
+					span.className = 'bb-clock-bracket';
+					span.textContent = full;
+					host.insertBefore(span, node);
+				} else {
+					li.addClass(
+						this.settings.timeEventStyle === 'circle'
+							? 'bb-clock-circle'
+							: /p/i.test(time) ? 'bb-clock-pm' : 'bb-clock-am'
+					);
+					node.textContent = text.replace(TIME_EVENT_TEXT, time);
+				}
 			}
 		});
 
 		// Live Preview / Source mode equivalents.
-		this.registerEditorExtension([emotionExtension, clockExtension]);
+		this.registerEditorExtension([emotionExtension, makeClockExtension(() => this.settings.timeEventStyle)]);
 
 		// A command per bullet type (so each can take a hotkey) plus a
 		// right-click submenu — both rewrite the selected line(s) to that type.
@@ -358,6 +392,13 @@ export default class BetterBujoPlugin extends Plugin {
 		for (const doc of this.styledDocs) {
 			this.styleDoc(doc);
 		}
+		// Force live-preview clock decorations to rebuild in all open editors.
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view instanceof MarkdownView) {
+				const cm = (leaf.view.editor as unknown as { cm: EditorView }).cm;
+				cm.dispatch({ effects: refreshClockEffect.of(undefined) });
+			}
+		});
 	}
 
 	private styleDoc(doc: Document): void {
@@ -495,6 +536,21 @@ class BetterBujoSettingTab extends PluginSettingTab {
 					.setDynamicTooltip()
 					.onChange(async (value) => {
 						this.plugin.settings.gridSpacing = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName('Time event style')
+			.setDesc('How to render time bullets like "- [9:30 am] …".')
+			.addDropdown((drop) =>
+				drop
+					.addOption('default', 'Dash — show [time] highlighted')
+					.addOption('ampm', 'Am/pm label on bullet')
+					.addOption('circle', 'Circle (like an event)')
+					.setValue(this.plugin.settings.timeEventStyle)
+					.onChange(async (value) => {
+						this.plugin.settings.timeEventStyle = value as TimeEventStyle;
 						await this.plugin.saveSettings();
 					})
 			);

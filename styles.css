@@ -14,8 +14,7 @@
  *     - [O]   event done       → ●      (same size as ○; click cycles back)
  *     - [-]   cancelled        → •, marker and whole line struck through, faint
  *     - …     plain list item  → –      (en dash, not a bullet)
- *     - [9:30 AM] …  time event → clock  (hand-drawn clock on the bullet; the
- *                                        time stays as text, brackets dropped)
+ *     - [9:30 AM] …  time event → configurable: dash/AM-PM/circle
  *     ~ …     emotion/thought  → styled line (the `~` glyph stays as typed)
  *
  * Strategy: never remove Obsidian's native marker elements — restyle them in
@@ -43,11 +42,6 @@
 	   done ✗, so the slash is literally the ✗'s first stroke at the same angle. */
 	--bb-stroke-w: max(1.5px, calc(var(--checkbox-size) * 0.1));
 	--bb-stroke-h: calc(var(--checkbox-size) * 0.62);
-	/* Hand-drawn clock face for time-based events (`- [9:30 AM] …`); used as a
-	   mask so it takes --bb-marker-color, and roughened further by --bb-rough.
-	   The face is a wobbly path with uneven radii that overshoots where it
-	   closes (the way a penned circle does), and the hands are slightly skew. */
-	--bb-clock-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.3C16.8 3 21.2 7.6 21 12.2C20.8 16.9 16.5 21.3 11.8 21C7 20.7 2.8 16.4 3 11.6C3.2 7.1 7.4 3.5 12.7 3.1'/%3E%3Cpath d='M12.1 12.2L11.7 7.4'/%3E%3Cpath d='M12.1 12.2L15.7 13.8'/%3E%3C/svg%3E");
 	/* Wet-ink bleed: a tight dark halo plus a soft outer one and a faint
 	   bottom-right pooling, so each glyph reads like ink soaked into paper
 	   rather than a crisp printed mark. Reused by every marker below. */
@@ -308,17 +302,36 @@
    out an irrelevant task on paper. Mirrors Obsidian's native done styling,
    which targets these same elements. The marker's ::after is absolutely
    positioned, so the line's text-decoration doesn't propagate into it — the
-   strike on the • is applied explicitly below. */
+   strike across the full item is drawn via ::before instead, so the same
+   hand-drawn filter can be applied. */
 .better-bujo .markdown-rendered li[data-task="-"],
 .better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="-"] {
-	text-decoration: line-through;
+	text-decoration: none;
 	color: var(--bb-done-color);
+	position: relative;
+}
+
+/* Hand-drawn strikethrough: a thin bar absolutely centred on the line, warped
+   by the same rough filter as every other glyph. `rotate(-0.6deg)` gives a
+   barely-perceptible descending tilt, the way a hand-ruled line would. */
+.better-bujo .markdown-rendered li[data-task="-"]::before,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-task-line[data-task="-"]::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	height: max(2px, 0.09em);
+	transform: translateY(-50%) rotate(-0.6deg);
+	background-color: currentColor;
+	filter: var(--bb-rough);
+	pointer-events: none;
+	z-index: 1;
 }
 
 .better-bujo li[data-task="-"] > input.task-list-item-checkbox::after,
 .better-bujo li[data-task="-"] > p > input.task-list-item-checkbox::after,
 .better-bujo .HyperMD-task-line[data-task="-"] input.task-list-item-checkbox::after {
-	text-decoration: line-through;
 	color: var(--bb-done-color);
 }
 
@@ -395,34 +408,74 @@
 }
 
 /* ===========================================================================
- * Time-based events ("- [9:30 AM] …"). The plugin tags the item (.bb-clock in
- * Reading mode, .bb-clock-line in Live Preview) and drops the brackets; here we
- * swap the dash on the bullet for a hand-drawn clock face. `inset: 0; margin:
- * auto` centers it in the same bullet box the dash used.
+ * Time-based events ("- [9:30 AM] …").
+ *
+ * Three rendering styles, chosen in settings:
+ *
+ *   default  — dash bullet unchanged; [time] wrapped in .bb-clock-bracket for
+ *              a muted highlight, brackets kept visible.
+ *   ampm     — brackets stripped; bullet replaced with a small "AM"/"PM" label
+ *              (classes bb-clock-am / bb-clock-pm / bb-clock-line-am / -pm).
+ *   circle   — brackets stripped; bullet replaced with an event-style ring
+ *              (classes bb-clock-circle / bb-clock-line-circle).
+ *
+ * `inset: 0; margin: auto` centers the replacement in the bullet box used by
+ * the dash, so it aligns with every other marker.
  * ======================================================================== */
 
-.better-bujo .markdown-rendered li.bb-clock .list-bullet::after,
-.better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line.bb-clock-line .list-bullet::after {
+/* "default" style: muted colour on the [time] bracket span. */
+.better-bujo .bb-clock-bracket {
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+/* "ampm" style: shared layout for the AM/PM text label. */
+.better-bujo .markdown-rendered li.bb-clock-am .list-bullet::after,
+.better-bujo .markdown-rendered li.bb-clock-pm .list-bullet::after,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line.bb-clock-line-am .list-bullet::after,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line.bb-clock-line-pm .list-bullet::after {
+	position: absolute;
+	inset: 0;
+	margin: auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--checkbox-size);
+	height: var(--checkbox-size);
+	font-size: calc(var(--checkbox-size) * 0.34);
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	color: var(--bb-marker-color);
+	transform: rotate(-4deg);
+	filter: var(--bb-rough);
+}
+
+.better-bujo .markdown-rendered li.bb-clock-am .list-bullet::after,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line.bb-clock-line-am .list-bullet::after {
+	content: "AM";
+}
+
+.better-bujo .markdown-rendered li.bb-clock-pm .list-bullet::after,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line.bb-clock-line-pm .list-bullet::after {
+	content: "PM";
+}
+
+/* "circle" style: wobbly hand-drawn ring, matching the event ○ proportions. */
+.better-bujo .markdown-rendered li.bb-clock-circle .list-bullet::after,
+.better-bujo .markdown-source-view.mod-cm6 .HyperMD-list-line.bb-clock-line-circle .list-bullet::after {
 	content: "";
 	position: absolute;
 	inset: 0;
 	margin: auto;
-	width: calc(var(--checkbox-size) * 0.82);
-	height: calc(var(--checkbox-size) * 0.82);
-	border: none;
-	border-radius: 0;
-	background-color: var(--bb-marker-color);
-	-webkit-mask-image: var(--bb-clock-svg);
-	mask-image: var(--bb-clock-svg);
-	-webkit-mask-repeat: no-repeat;
-	mask-repeat: no-repeat;
-	-webkit-mask-position: center;
-	mask-position: center;
-	-webkit-mask-size: contain;
-	mask-size: contain;
-	transform: rotate(-4deg);
+	box-sizing: border-box;
+	width: calc(var(--checkbox-size) * 0.5);
+	height: calc(var(--checkbox-size) * 0.5);
+	background-color: transparent;
+	border: max(1px, calc(var(--checkbox-size) * 0.08)) solid var(--bb-marker-color);
+	border-radius: 47% 53% 52% 48% / 53% 47% 53% 47%;
+	transform: rotate(-8deg);
 	filter: var(--bb-rough);
-	text-shadow: none;
+	box-shadow: var(--bb-ink-shadow);
 }
 
 /* ===========================================================================
