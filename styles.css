@@ -98,11 +98,17 @@
 
 /* The glyph. Absolutely positioned over the checkbox box and centered, so a
    glyph larger than the box overflows symmetrically without shifting any
-   text. `content` below is the open-task default; data-task rules swap it. */
-.better-bujo input.task-list-item-checkbox::after {
+   text. `content` below is the open-task default; data-task rules swap it.
+   `:checked` is spelled out because Obsidian checks the input for *any*
+   non-blank marker, and themes style `input:checked::after` at the same
+   specificity as the bare selector — theme CSS loads last, so without it they
+   win the tie and re-apply their own checkmark mask over our glyph. */
+.better-bujo input.task-list-item-checkbox::after,
+.better-bujo input.task-list-item-checkbox:checked::after {
 	content: "\2022"; /* • — open task, the default for any unrecognised marker */
 	position: absolute;
 	inset: 0;
+	margin: 0;
 	width: auto;
 	height: auto;
 	display: flex;
