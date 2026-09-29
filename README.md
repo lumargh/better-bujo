@@ -3,6 +3,10 @@
 Render bullet-journal (BuJo) markers in your notes instead of Obsidian's
 checkboxes — in both **Reading mode** and **Live Preview**.
 
+<p align="center">
+<a href="https://github.com/lumargh/better-bujo/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc">Vote on issues</a> · <a href="https://github.com/lumargh/better-bujo/issues/new?labels=bug">Report a bug</a> · <a href="https://github.com/lumargh/better-bujo/issues/new?labels=enhancement">Request a feature</a>
+</p>
+
 ![Better Bujo demo](assets/bujo-demo.gif)
 
 ## Markers
