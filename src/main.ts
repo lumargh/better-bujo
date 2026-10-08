@@ -446,24 +446,22 @@ export default class BetterBujoPlugin extends Plugin {
 		this.editMarkerInEditor(input, regex, next);
 	}
 
-	// Live Preview: locate the editor that rendered this checkbox and rewrite
-	// the marker character on its line.
+	// Live Preview: rewrite the marker character on the checkbox's line, in
+	// whichever editor rendered it — a note's tab, or a note embedded elsewhere
+	// (e.g. another plugin's view), which has no MarkdownView of its own.
 	private editMarkerInEditor(input: HTMLElement, regex: RegExp, next: (cur: string) => string): void {
-		const view = this.findMarkdownView(input);
-		if (!view) {
+		const editorEl = input.closest<HTMLElement>('.cm-editor');
+		const cm = editorEl && EditorView.findFromDOM(editorEl);
+		if (!cm) {
 			return;
 		}
-		const editor = view.editor;
-		// Editor.cm (the underlying EditorView) is not in the public typings,
-		// but is the only way to map a DOM node back to a document position.
-		const cm = (editor as unknown as { cm: EditorView }).cm;
-		const lineNo = cm.state.doc.lineAt(cm.posAtDOM(input)).number - 1;
-		const match = regex.exec(editor.getLine(lineNo));
+		const line = cm.state.doc.lineAt(cm.posAtDOM(input));
+		const match = regex.exec(line.text);
 		if (!match) {
 			return;
 		}
-		const ch = (match[1] ?? '').length;
-		editor.replaceRange(next(match[2] ?? ''), { line: lineNo, ch }, { line: lineNo, ch: ch + 1 });
+		const from = line.from + (match[1] ?? '').length;
+		cm.dispatch({ changes: { from, to: from + 1, insert: next(match[2] ?? '') } });
 	}
 
 	// Rewrite every line touched by the selection (or the cursor line) to the
@@ -477,16 +475,6 @@ export default class BetterBujoPlugin extends Plugin {
 				editor.setLine(line, next);
 			}
 		}
-	}
-
-	private findMarkdownView(el: HTMLElement): MarkdownView | null {
-		let found: MarkdownView | null = null;
-		this.app.workspace.iterateAllLeaves((leaf) => {
-			if (!found && leaf.view instanceof MarkdownView && leaf.view.containerEl.contains(el)) {
-				found = leaf.view;
-			}
-		});
-		return found;
 	}
 }
 
